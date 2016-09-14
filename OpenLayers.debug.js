@@ -67706,6 +67706,7 @@ OpenLayers.Format.WFSCapabilities.v1 = OpenLayers.Class(
                     obj.name = parts.pop();
                     if(parts.length > 0) {
                         obj.featureNS = this.lookupNamespaceURI(node, parts[0]);
+                        obj.prefixedName = name
                     }
                 }
             },
