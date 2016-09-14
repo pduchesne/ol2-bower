@@ -63595,8 +63595,13 @@ OpenLayers.Format.WFSDescribeFeatureType = OpenLayers.Class(
                     obj.elements.push(element);
                     this.readChildNodes(node, element);
                 }
-                
-                if(obj.complexTypes) {
+
+                if (node.hasChildNodes('complexType')) {
+                    if (!obj.complexTypes) obj.complexTypes = []
+                    this.readChildNodes(node, node.getElementsByTagName('complexType'));
+                }
+
+                if(obj.complexTypes && obj.complexTypes.length > 0) {
                     type = node.getAttribute("type");
                     var localType = type.split(":").pop();
                     obj.customTypes[localType] = {
