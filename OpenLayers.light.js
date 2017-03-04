@@ -301,7 +301,8 @@ return equals;},destroy:function(){delete this.proj;delete this.projCode;},CLASS
 if(!OpenLayers.Projection.transforms[from]){OpenLayers.Projection.transforms[from]={};}
 OpenLayers.Projection.transforms[from][to]=method;};OpenLayers.Projection.transform=function(point,source,dest){if(source&&dest){if(!(source instanceof OpenLayers.Projection)){source=new OpenLayers.Projection(source);}
 if(!(dest instanceof OpenLayers.Projection)){dest=new OpenLayers.Projection(dest);}
-if(source.proj&&dest.proj){point=Proj4js.transform(source.proj,dest.proj,point);}else{var sourceCode=source.getCode();var destCode=dest.getCode();var transforms=OpenLayers.Projection.transforms;if(transforms[sourceCode]&&transforms[sourceCode][destCode]){transforms[sourceCode][destCode](point);}}}
+if(source.proj&&dest.proj){var newPoint=Proj4js.transform(source.proj,dest.proj,point);point.x=newPoint.x
+point.y=newPoint.y}else{var sourceCode=source.getCode();var destCode=dest.getCode();var transforms=OpenLayers.Projection.transforms;if(transforms[sourceCode]&&transforms[sourceCode][destCode]){transforms[sourceCode][destCode](point);}}}
 return point;};OpenLayers.Projection.nullTransform=function(point){return point;};(function(){var pole=20037508.34;function inverseMercator(xy){xy.x=180*xy.x/pole;xy.y=180/Math.PI*(2*Math.atan(Math.exp((xy.y/pole)*Math.PI))-Math.PI/2);return xy;}
 function forwardMercator(xy){xy.x=xy.x*pole/180;var y=Math.log(Math.tan((90+xy.y)*Math.PI/360))/Math.PI*pole;xy.y=Math.max(-20037508.34,Math.min(y,20037508.34));return xy;}
 function map(base,codes){var add=OpenLayers.Projection.addTransform;var same=OpenLayers.Projection.nullTransform;var i,len,code,other,j;for(i=0,len=codes.length;i<len;++i){code=codes[i];add(base,code,forwardMercator);add(code,base,inverseMercator);for(j=i+1;j<len;++j){other=codes[j];add(code,other,same);add(other,code,same);}}}

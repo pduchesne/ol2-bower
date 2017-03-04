@@ -9582,7 +9582,9 @@ OpenLayers.Projection.transform = function(point, source, dest) {
             dest = new OpenLayers.Projection(dest);
         }
         if (source.proj && dest.proj) {
-            point = Proj4js.transform(source.proj, dest.proj, point);
+            var newPoint = Proj4js.transform(source.proj, dest.proj, point);
+            point.x = newPoint.x
+            point.y = newPoint.y
         } else {
             var sourceCode = source.getCode();
             var destCode = dest.getCode();
@@ -63522,7 +63524,7 @@ OpenLayers.Format.WFSDescribeFeatureType = OpenLayers.Class(
                     customTypes: customTypes
                 };
                 var i, len;
-                
+
                 this.readChildNodes(node, schema);
 
                 var attributes = node.attributes;
@@ -63536,9 +63538,9 @@ OpenLayers.Format.WFSDescribeFeatureType = OpenLayers.Class(
                         obj[name] = attr.value;
                     }
                 }
-                obj.featureTypes = complexTypes;                
+                obj.featureTypes = complexTypes;
                 obj.targetPrefix = this.namespaceAlias[obj.targetNamespace];
-                
+
                 // map complexTypes to names of customTypes
                 var complexType, customType;
                 for(i=0, len=complexTypes.length; i<len; ++i) {
@@ -63557,12 +63559,21 @@ OpenLayers.Format.WFSDescribeFeatureType = OpenLayers.Class(
                     "typeName": node.getAttribute("name")
                 };
                 this.readChildNodes(node, complexType);
-                obj.complexTypes.push(complexType);
+
+                if (complexType.typeName)
+                    obj.complexTypes.push(complexType);
+                else
+                    obj.base = complexType.base
+
             },
             "complexContent": function(node, obj) {
                 this.readChildNodes(node, obj);
             },
+            "simpleContent": function(node, obj) {
+                this.readChildNodes(node, obj);
+            },
             "extension": function(node, obj) {
+                obj.base = node.getAttribute("base");
                 this.readChildNodes(node, obj);
             },
             "sequence": function(node, obj) {
@@ -63582,8 +63593,8 @@ OpenLayers.Format.WFSDescribeFeatureType = OpenLayers.Class(
                         attr = attributes[i];
                         element[attr.name] = attr.value;
                     }
-                    
-                    type = element.type;
+
+                    type = element.type || element.ref;
                     if(!type) {
                         type = {};
                         this.readChildNodes(node, type);
@@ -63591,9 +63602,11 @@ OpenLayers.Format.WFSDescribeFeatureType = OpenLayers.Class(
                         element.type = type.base;
                     }
                     var fullType = type.base || type;
-                    element.localType = fullType.split(":").pop();
-                    obj.elements.push(element);
-                    this.readChildNodes(node, element);
+                    if (fullType.split) {
+                        element.localType = fullType.split(":").pop();
+                        obj.elements.push(element);
+                        this.readChildNodes(node, element);
+                    }
                 }
 
                 if (node.hasChildNodes('complexType')) {
@@ -64128,11 +64141,14 @@ OpenLayers.Format.WMTSCapabilities = OpenLayers.Class(OpenLayers.Format.XML.Vers
             matrixSet = contents.tileMatrixSets[config.matrixSet];
         } else if (config.projection) {
             for (var i=0,l=layerDef.tileMatrixSetLinks.length;i<l;i++) {
-                if (contents.tileMatrixSets[
-                        layerDef.tileMatrixSetLinks[i].tileMatrixSet
+                var supportedCRS = contents.tileMatrixSets[
+                    layerDef.tileMatrixSetLinks[i].tileMatrixSet
                     ].supportedCRS.replace(
-                        /urn:ogc:def:crs:(\w+):(.*:)?(\w+)$/, "$1:$3"
-                    ) === config.projection) {
+                    /urn:ogc:def:crs:(\w+):(.*:)?(\w+)$/, "$1:$3"
+                )
+
+                if (supportedCRS === config.projection ||
+                    (supportedCRS === "OGC:CRS84" && config.projection === "EPSG:4326") ) {
 
                     matrixSet = contents.tileMatrixSets[
                         layerDef.tileMatrixSetLinks[i].tileMatrixSet];
@@ -64159,7 +64175,11 @@ OpenLayers.Format.WMTSCapabilities = OpenLayers.Class(OpenLayers.Format.XML.Vers
         var requestEncoding = config.requestEncoding;
         if (!requestEncoding) {
             requestEncoding = "KVP";
-            if (capabilities.operationsMetadata.GetTile.dcp.http) {
+            // implicit value is REST, see #579
+            if (!capabilities.operationsMetadata || !capabilities.operationsMetadata.GetTile) {
+                requestEncoding = "REST";
+            }
+            else if (capabilities.operationsMetadata.GetTile.dcp.http) {
                 var http = capabilities.operationsMetadata.GetTile.dcp.http;
                 // Get first get method
                 if (http.get[0].constraints) {
@@ -67914,6 +67934,15 @@ OpenLayers.Format.WFSCapabilities.v1_1_0 = OpenLayers.Class(
                 if (defaultSRS) {
                     obj.srs = defaultSRS;
                 }
+            },
+            "OtherSRS": function(node, obj) {
+                var otherCRS = this.getChildValue(node);
+                if (otherCRS) {
+                    if (obj.altSrs)
+                        obj.altSrs.push(otherCRS)
+                    else
+                        obj.altSrs = [otherCRS];
+                }
             }
         }, OpenLayers.Format.WFSCapabilities.v1.prototype.readers["wfs"]),
         "ows": OpenLayers.Format.OWSCommon.v1.prototype.readers.ows
@@ -68045,6 +68074,7 @@ OpenLayers.Format.WFSCapabilities.v2_0_0 = OpenLayers.Class(
                     obj.name = parts.pop();
                     if(parts.length > 0) {
                         obj.featureNS = this.lookupNamespaceURI(node, parts[0]);
+                        obj.prefixedName = name
                     }
                 }
             },
@@ -68064,6 +68094,30 @@ OpenLayers.Format.WFSCapabilities.v2_0_0 = OpenLayers.Class(
                 var defaultCRS = this.getChildValue(node);
                 if (defaultCRS) {
                     obj.srs = defaultCRS;
+                }
+            },
+            "OtherCRS": function(node, obj) {
+                var otherCRS = this.getChildValue(node);
+                if (otherCRS) {
+                    if (obj.altSrs)
+                        obj.altSrs.push(otherCRS)
+                    else
+                        obj.altSrs = [otherCRS];
+                }
+            } ,
+            "DefaultSRS": function(node, obj) {
+                var defaultSRS = this.getChildValue(node);
+                if (defaultSRS) {
+                    obj.srs = defaultSRS;
+                }
+            },
+            "OtherSRS": function(node, obj) {
+                var otherCRS = this.getChildValue(node);
+                if (otherCRS) {
+                    if (obj.altSrs)
+                        obj.altSrs.push(otherCRS)
+                    else
+                        obj.altSrs = [otherCRS];
                 }
             }
         },

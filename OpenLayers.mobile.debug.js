@@ -6714,7 +6714,9 @@ OpenLayers.Projection.transform = function(point, source, dest) {
             dest = new OpenLayers.Projection(dest);
         }
         if (source.proj && dest.proj) {
-            point = Proj4js.transform(source.proj, dest.proj, point);
+            var newPoint = Proj4js.transform(source.proj, dest.proj, point);
+            point.x = newPoint.x
+            point.y = newPoint.y
         } else {
             var sourceCode = source.getCode();
             var destCode = dest.getCode();
