@@ -1,5 +1,5 @@
 {
-  "name": "ol2-bower",
+  "name": "openlayers2",
   "description": "OpenLayers 2 Bower descriptor",
   "version": "2.14-hilats",
   "main": ["OpenLayers.js"],
